@@ -1,4 +1,4 @@
-#!/usr/bin/env perl
+#!perl
 use strict;
 use warnings;
 use Getopt::Long qw(GetOptions);
@@ -9,11 +9,30 @@ GetOptions(
   'sort',
   'width|w=i',
   'delimiter=s',
-  'scaletotal'
+  'scaletotal',
+  'numeric-format|nf=s',
+  'style=s',
 );
 
 my $delimiter = "\\s+";
 $delimiter = qr/$opt->{delimiter}/ if defined($opt->{delimiter});
+$opt->{style} = '*' if not defined $opt->{style};
+
+my %styles = (
+  '-' => {character => '-', end_character => '>'},
+  '=' => {character => '=', end_character => '>'},
+  '~' => {character => '~', end_character => '>'},
+);
+
+if (not exists $styles{$opt->{style}}) {
+  if (length($opt->{style}) == 1) {
+    $styles{$opt->{style}} = {character => $opt->{style}, end_character => $opt->{style}};
+  }
+  else {
+    die "Invalid histogram style '$opt->{style}'. Valid styles: '"
+        . join("', '", keys %styles), "' and any single character.\n";
+  }
+}
 
 # read all input
 my @rows;
@@ -33,13 +52,21 @@ while (<STDIN>) {
 
 # extract min/max/width info from input data
 my $desc_width = 0;
-my ($hist_max, $hist_min);
+my $val_width  = 0;
 my $hist_total = 0;
+my $show_numeric = defined($opt->{"numeric-format"});
+my $numeric_format = $show_numeric ? $opt->{"numeric-format"} : "%f";
+my ($hist_max, $hist_min);
 foreach my $row (@rows) {
-  $desc_width = length($row->[0]) if length($row->[0]) > $desc_width;
-  $hist_min = $row->[1] if !defined $hist_min or $row->[1] < $hist_min;
-  $hist_max = $row->[1] if !defined $hist_max or $row->[1] > $hist_max;
-  $hist_total += $row->[1];
+  my ($desc, $value) = @$row;
+  my $formatted = sprintf($numeric_format, $value);
+
+  $desc_width = length($desc) if length($desc) > $desc_width;
+  $val_width  = length($formatted) if length($formatted) > $val_width;
+  $hist_min = $value if !defined $hist_min or $value < $hist_min;
+  $hist_max = $value if !defined $hist_max or $value > $hist_max;
+  $hist_total += $value;
+  push @$row, $show_numeric ? $formatted : '';
 }
 
 # sort by value if desired
@@ -54,15 +81,26 @@ if ($width < $desc_width + 3) {
   $width = $desc_width + 3;
 }
 
-my $hwidth = $width - $desc_width - 3;
+my $vwidth = $show_numeric ? $val_width+2 : 0;
+my $hwidth = $width - $desc_width - $vwidth - 3;
 
 my $scale = $opt->{scaletotal} ? $hist_total : $hist_max;
 
 # format the output
-my $format = "%${desc_width}s: %-${hwidth}s|";
+my $format = "%${desc_width}s: %${vwidth}s|%-${hwidth}s|\n";
+my $styledef = $styles{$opt->{style}};
+my $hchar = $styledef->{character};
+my $end_hchar = $styledef->{end_character};
+my $end_hchar_len = length($end_hchar);
+
 foreach my $row (@rows) {
-  my $hlen = int($row->[1] / $scale * $hwidth);
-  my $l = sprintf($format, $row->[0], ("*" x $hlen));
-  print $l,"\n";
+  my $value = $row->[1];
+  my $hlen = int($value / $scale * $hwidth);
+  if ($hlen >= $end_hchar_len) {
+    printf($format, $row->[0], $row->[2], ($hchar x ($hlen-$end_hchar_len)) . $end_hchar);
+  }
+  else {
+    printf($format, $row->[0], $row->[2], ($hchar x $hlen));
+  }
 }
 
