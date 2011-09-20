@@ -1,0 +1,68 @@
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use Getopt::Long qw(GetOptions);
+use Term::Size ();
+
+GetOptions(
+  my $opt = {},
+  'sort',
+  'width|w=i',
+  'delimiter=s',
+  'scaletotal'
+);
+
+my $delimiter = "\\s+";
+$delimiter = qr/$opt->{delimiter}/ if defined($opt->{delimiter});
+
+# read all input
+my @rows;
+my $i = 0;
+while (<STDIN>) {
+  ++$i;
+  chomp;
+  s/^\s+//;
+  my @col = split /$delimiter/o, $_;
+  next if @col == 0;
+  if (@col == 1) {
+    push @rows, [$i, $col[0]];
+  } else {
+    push @rows, [@col[0,1]];
+  }
+}
+
+# extract min/max/width info from input data
+my $desc_width = 0;
+my ($hist_max, $hist_min);
+my $hist_total = 0;
+foreach my $row (@rows) {
+  $desc_width = length($row->[0]) if length($row->[0]) > $desc_width;
+  $hist_min = $row->[1] if !defined $hist_min or $row->[1] < $hist_min;
+  $hist_max = $row->[1] if !defined $hist_max or $row->[1] > $hist_max;
+  $hist_total += $row->[1];
+}
+
+# sort by value if desired
+@rows = sort {$a->[1] <=> $b->[1]} @rows if $opt->{sort};
+
+# figure out output width
+my ($tcols, $trows) = Term::Size::chars(*STDOUT{IO});
+my $width = $opt->{width} || $tcols-2;
+
+if ($width < $desc_width + 3) {
+  warn "Terminal or desired width is insufficient.\n";
+  $width = $desc_width + 3;
+}
+
+my $hwidth = $width - $desc_width - 3;
+
+my $scale = $opt->{scaletotal} ? $hist_total : $hist_max;
+
+# format the output
+my $format = "%${desc_width}s: %-${hwidth}s|";
+foreach my $row (@rows) {
+  my $hlen = int($row->[1] / $scale * $hwidth);
+  my $l = sprintf($format, $row->[0], ("*" x $hlen));
+  print $l,"\n";
+}
+

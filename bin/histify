@@ -1,0 +1,87 @@
+#!perl
+use strict;
+use warnings;
+use Getopt::Long qw(GetOptions);
+use Term::Size ();
+use Math::SimpleHisto::XS;
+
+GetOptions(
+  my $opt = {nbins => 10},
+  'nbins=i',
+  'min=f',
+  'max=f',
+  'desc=s',
+  'help|h'
+);
+
+if ($opt->{help}) {
+  print <<HERE;
+Usage: $0 [--nbins=X] [--min=X] [--max=X] [--desc=<center|left|right|number|none>]
+
+Reads numbers from STDIN and histograms them. If no histogram
+boundaries are specified, the number of bins defaults to 10 and the
+min/max are extracted from the data. That means reading all data into
+memory. If you specify min&max, the program works with constant
+memory.
+
+Prints the resulting histogram contents one bin per line.
+
+--desc indicates whether to output an extra column before the histogram
+content (separated by a tab) that can be: The bin "number", the bin
+"center", the "left" bin boundary, or the "right" bin boundary.
+HERE
+  exit(1);
+}
+
+my $readall = (!defined($opt->{min}) || !defined($opt->{max}));
+
+my ($tcols, $trows) = Term::Size::chars(*STDOUT{IO});
+my $hist;
+if ($readall) {
+  my @d;
+  while (<STDIN>) {
+    chomp;
+    push @d, split " ", $_;
+  }
+  ($opt->{min}, $opt->{max}) = minmax(@d);
+
+  $hist = Math::SimpleHisto::XS->new(map {$_ => $opt->{$_}} qw(nbins min max));
+  $hist->fill(\@d);
+}
+else {
+  $hist = Math::SimpleHisto::XS->new(map {$_ => $opt->{$_}} qw(nbins min max));
+  while (<STDIN>) {
+    chomp;
+    $hist->fill([split " ", $_]);
+  }
+}
+
+my $desc = lc($opt->{desc}||'');
+if ($desc eq '' or $desc eq 'none') {
+  print "$_\n" for @{ $hist->all_bin_contents };
+}
+elsif ($desc =~ /^(?:center|number|left|right)$/) {
+  my $content = $hist->all_bin_contents;
+  my $descriptions;
+  if    ($desc eq 'center') { $descriptions = $hist->bin_centers; }
+  elsif ($desc eq 'number') { $descriptions = [0..$hist->nbins-1]; }
+  elsif ($desc eq 'left')   { $descriptions = $hist->bin_lower_boundaries; }
+  elsif ($desc eq 'right')  { $descriptions = $hist->bin_upper_boundaries; }
+  
+  foreach my $bin (0..$hist->nbins-1) {
+    print "$descriptions->[$bin]\t$content->[$bin]\n";
+  }
+}
+else {
+  die "Invalid description mode";
+}
+
+sub minmax {
+  my ($min, $max);
+  for (@_) {
+    $min = $_ if not defined $min or $min > $_;
+    $max = $_ if not defined $max or $max < $_;
+  }
+  return($min, $max);
+}
+
