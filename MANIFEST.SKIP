@@ -10,6 +10,7 @@
 \B\.gitignore$
 \B\.git
 
+\bMYMETA\.(?:json|yml)$
 # Avoid Makemaker generated and utility files.
 \bMakefile$
 \bblib
