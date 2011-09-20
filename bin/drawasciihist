@@ -16,7 +16,7 @@ GetOptions(
 
 my $delimiter = "\\s+";
 $delimiter = qr/$opt->{delimiter}/ if defined($opt->{delimiter});
-$opt->{style} = '*' if not defined $opt->{style};
+$opt->{style} = '~' if not defined $opt->{style};
 
 my %styles = (
   '-' => {character => '-', end_character => '>'},
