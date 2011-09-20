@@ -10,6 +10,7 @@ WriteMakefile(
       'Math::SimpleHisto::XS' => '1.10',
       'Test::More' => '0.88',
       'Term::Size' => '0.200',
+      'Pod::Usage' => '0',
     },
     EXE_FILES => [qw(bin/histify bin/drawasciihist)],
     ($] >= 5.005 ?
