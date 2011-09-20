@@ -27,8 +27,8 @@ histify - generate simple histograms from streamed data
 
 =head1 SYNOPSIS
 
-generator | histify [--nbins=X] [--min=X] [--max=X] \
-                    [--desc=<center|left|right|number|none>]
+  generator | histify [--nbins=X] [--min=X] [--max=X] \
+                      [--desc=<center|left|right|number|none>]
 
 Reads whitespace-separated numbers from STDIN and generates a
 histogram. If no histogram boundaries are specified using
@@ -58,6 +58,7 @@ if ($readall) {
     chomp;
     push @d, split " ", $_;
   }
+  exit(0) if not @d;
   my ($min, $max) = minmax(@d);
   $opt->{min} = $min if not defined $opt->{min};
   $opt->{max} = $max if not defined $opt->{max};
