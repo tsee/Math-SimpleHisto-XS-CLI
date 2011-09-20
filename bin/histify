@@ -66,11 +66,18 @@ if ($readall) {
   $hist->fill(\@d);
 }
 else { # we have proper histogram boundaries
+  use constant BATCHSIZE => 1000;
   $hist = Math::SimpleHisto::XS->new(map {$_ => $opt->{$_}} qw(nbins min max));
+  my @d;
   while (<STDIN>) {
     chomp;
-    $hist->fill([split " ", $_]);
+    push @d, split " ", $_;
+    if (@d >= BATCHSIZE) {
+      $hist->fill(\@d);
+      @d = ();
+    }
   }
+  $hist->fill(\@d) if @d;
 }
 
 my $desc = lc($opt->{desc}||'');
