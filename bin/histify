@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 use Getopt::Long qw(GetOptions);
+use Pod::Usage qw(pod2usage);
 use Term::Size ();
 use Math::SimpleHisto::XS;
 
@@ -11,44 +12,60 @@ GetOptions(
   'min=f',
   'max=f',
   'desc=s',
-  'help|h'
+  'help|h',
+  'man'
 );
 
-if ($opt->{help}) {
-  print <<HERE;
-Usage: $0 [--nbins=X] [--min=X] [--max=X] [--desc=<center|left|right|number|none>]
+pod2usage({-verbose => 2}) if $opt->{man};
+pod2usage({-verbose => 0}) if $opt->{help};
 
-Reads numbers from STDIN and histograms them. If no histogram
-boundaries are specified, the number of bins defaults to 10 and the
-min/max are extracted from the data. That means reading all data into
-memory. If you specify min&max, the program works with constant
-memory.
+=pod
+
+=head1 NAME
+
+histify - generate simple histograms from streamed data
+
+=head1 SYNOPSIS
+
+generator | histify [--nbins=X] [--min=X] [--max=X] \
+                    [--desc=<center|left|right|number|none>]
+
+Reads whitespace-separated numbers from STDIN and generates a
+histogram. If no histogram boundaries are specified using
+options, the number of bins defaults to 10 and the min/max are
+extracted from the data. That means reading all data into
+memory. If you specify min/max, the program works with constant
+memory overhead.
 
 Prints the resulting histogram contents one bin per line.
 
---desc indicates whether to output an extra column before the histogram
-content (separated by a tab) that can be: The bin "number", the bin
-"center", the "left" bin boundary, or the "right" bin boundary.
-HERE
-  exit(1);
-}
+Using --desc=<type> adds an extra column to the output before the
+histogram content (separated by a tab) that can be any one of:
+The bin "number", the bin "center", the "left" bin boundary, or
+the "right" bin boundary.
+
+=cut
 
 my $readall = (!defined($opt->{min}) || !defined($opt->{max}));
 
 my ($tcols, $trows) = Term::Size::chars(*STDOUT{IO});
 my $hist;
+
+# We don't know either min or max or neither
 if ($readall) {
   my @d;
   while (<STDIN>) {
     chomp;
     push @d, split " ", $_;
   }
-  ($opt->{min}, $opt->{max}) = minmax(@d);
+  my ($min, $max) = minmax(@d);
+  $opt->{min} = $min if not defined $opt->{min};
+  $opt->{max} = $max if not defined $opt->{max};
 
   $hist = Math::SimpleHisto::XS->new(map {$_ => $opt->{$_}} qw(nbins min max));
   $hist->fill(\@d);
 }
-else {
+else { # we have proper histogram boundaries
   $hist = Math::SimpleHisto::XS->new(map {$_ => $opt->{$_}} qw(nbins min max));
   while (<STDIN>) {
     chomp;
@@ -75,6 +92,8 @@ elsif ($desc =~ /^(?:center|number|left|right)$/) {
 else {
   die "Invalid description mode";
 }
+
+
 
 sub minmax {
   my ($min, $max);
