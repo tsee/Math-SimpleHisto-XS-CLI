@@ -1,0 +1,10 @@
+*.swp
+*.swo
+*~
+*.bak
+Makefile
+Makefile.old
+blib/
+pm_to_blib
+*.o
+MYMETA.yml
