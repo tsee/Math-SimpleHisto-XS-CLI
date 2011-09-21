@@ -73,7 +73,13 @@ foreach my $row (@rows) {
 @rows = sort {$a->[1] <=> $b->[1]} @rows if $opt->{sort};
 
 # figure out output width
-my ($tcols, $trows) = Term::Size::chars(*STDOUT{IO});
+my ($tcols, $trows);
+if (-t *STDOUT) {
+  ($tcols, $trows) = Term::Size::chars(*STDOUT{IO});
+}
+else {
+  $tcols = 80;
+}
 my $width = $opt->{width} || $tcols-2;
 
 if ($width < $desc_width + 3) {
