@@ -1,4 +1,10 @@
 Revision history for Perl extension Math::SimpleHisto::XS::CLI.
 
+1.01  Wed Sep 21 18:52:00 2011
+  - Support the --xw option to histify which aggregates/rebins with
+    weights.
+  - drawasciihist now defaults to 80 columns if not writing to a
+    terminal.
+
 1.00  Tue Sep 20 18:52:00 2011
   - original version
