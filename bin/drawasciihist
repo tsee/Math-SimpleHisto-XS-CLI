@@ -3,16 +3,87 @@ use strict;
 use warnings;
 use Getopt::Long qw(GetOptions);
 use Term::Size ();
+use Pod::Usage qw(pod2usage);
 
 GetOptions(
   my $opt = {},
   'sort',
   'width|w=i',
-  'delimiter=s',
+  'delimiter|d=s',
   'scaletotal',
   'numeric-format|nf=s',
   'style=s',
+  'man',
+  'help|h',
 );
+
+pod2usage({-verbose => 2}) if $opt->{man};
+pod2usage({-verbose => 0}) if $opt->{help};
+
+=pod
+
+=head1 NAME
+
+drawasciihist - draw simple text histograms
+
+=head1 SYNOPSIS
+
+  generator | drawasciihist [--sort] [--width=<ncols>] [--style=<ident>]
+                            [--numeric-format|nf=<printf format>]
+                            [--delimiter|d=<regexp>] [--scaletotal]
+
+Together with the C<histify> tool, this can easily produce simple
+visualizations for quickly analyzing simple data in a console. Run the
+script with the C<--man> option to see an example.
+
+The tool expects to read histogram data from STDIN, one bin per line.
+If a given input line has two or more columns (see the C<--delimiter>
+option), the first column will be used as the bin name, the second as
+the numeric bin content. If an input line has only one column, the
+bin description will be the bin number.
+
+By default, the output histogram will have a range from 0 to the maximum
+value in any bin. If you specify the C<--scaletotal> option, the bar
+length will instead be scaled to the sum of all bin contents, yet still
+start at 0.
+
+The output histogram width is determined automatically from your
+terminal size, if any. Otherwise assumes 80 columns. You can set the
+width explicitly using C<--width=ncols>. The C<--sort> option sorts
+the bins by content instead of input order.
+
+If the C<--numeric-format> option is present, then the actual numeric
+value is included in the histogram using the given C<printf> format.
+For positive integers, you would use C<--nf='%u'>, for signed integers,
+use C<--nf='%i'> and for fixed precision floats, you can use something
+like C<--nf='%.2f'>.
+
+The delimiter for splitting an input line into columns defaults to
+any whitespace. You can change that by supplying a Perl regular
+expression to the C<--delimiter=...> option.
+
+You can choose the character to be used for drawing histograms with the
+C<--style=[character]> option. The characters '-', '=', '~' are special
+cased to use an arrow-like appearance.
+
+=head1 EXAMPLE OUTPUT
+
+  $ perl -e 'print $_*(rand()), "\n" for 1..100000' \
+          | histify | drawasciihist -nf='%u' -w=70
+
+   1:   33155|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>|
+   2:   19010|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>                         |
+   3:   13972|~~~~~~~~~~~~~~~~~~~~~~~>                                  |
+   4:   10476|~~~~~~~~~~~~~~~~~>                                        |
+   5:    7919|~~~~~~~~~~~~>                                             |
+   6:    5959|~~~~~~~~~>                                                |
+   7:    4446|~~~~~~>                                                   |
+   8:    2913|~~~~>                                                     |
+   9:    1611|~>                                                        |
+  10:     538|                                                          |
+
+=cut
+
 
 my $delimiter = "\\s+";
 $delimiter = qr/$opt->{delimiter}/ if defined($opt->{delimiter});
