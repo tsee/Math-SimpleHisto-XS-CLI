@@ -13,6 +13,7 @@ GetOptions(
   'max=f',
   'desc=s',
   'help|h',
+  'xw',
   'man'
 );
 
@@ -27,7 +28,7 @@ histify - generate simple histograms from streamed data
 
 =head1 SYNOPSIS
 
-  generator | histify [--nbins=X] [--min=X] [--max=X] \
+  generator | histify [--nbins=X] [--min=X] [--max=X] [--xw] \
                       [--desc=<center|left|right|number|none>]
 
 Reads whitespace-separated numbers from STDIN and generates a
@@ -44,19 +45,31 @@ histogram content (separated by a tab) that can be any one of:
 The bin "number", the bin "center", the "left" bin boundary, or
 the "right" bin boundary.
 
+The --xw option will cause histify to read alternating X values
+and weights instead of just X values from STDIN. This is useful
+for re-binning partially aggregated input data.
+
 =cut
 
 my $readall = (!defined($opt->{min}) || !defined($opt->{max}));
 
 my ($tcols, $trows) = Term::Size::chars(*STDOUT{IO});
 my $hist;
+my $pos_weight = $opt->{xw};
 
 # We don't know either min or max or neither
 if ($readall) {
-  my @d;
+  my (@d, @w);
+  my $i = 0;
   while (<STDIN>) {
     chomp;
-    push @d, split " ", $_;
+    s/^\s+//; s/\s+$//;
+    if ($pos_weight) {
+      push @{ (++$i % 2) ? \@d : \@w }, $_ for split " ", $_;
+    }
+    else {
+      push @d, split " ", $_;
+    }
   }
   exit(0) if not @d;
   my ($min, $max) = minmax(@d);
@@ -64,21 +77,30 @@ if ($readall) {
   $opt->{max} = $max if not defined $opt->{max};
 
   $hist = Math::SimpleHisto::XS->new(map {$_ => $opt->{$_}} qw(nbins min max));
-  $hist->fill(\@d);
+  $hist->fill($pos_weight ? (\@d, \@w) : (\@d));
 }
 else { # we have proper histogram boundaries
   use constant BATCHSIZE => 1000;
   $hist = Math::SimpleHisto::XS->new(map {$_ => $opt->{$_}} qw(nbins min max));
-  my @d;
+  my (@d, @w);
+  my $i = 0;
   while (<STDIN>) {
     chomp;
-    push @d, split " ", $_;
+    my @row = split " ", $_;
+    if ($pos_weight) {
+      push @{ (++$i % 2) ? \@d : \@w }, $_ for split " ", $_;
+    }
+    else {
+      push @d, split " ", $_;
+    }
     if (@d >= BATCHSIZE) {
-      $hist->fill(\@d);
-      @d = ();
+      my $tmp;
+      $tmp = pop(@w) if @d != @w;
+      $hist->fill($pos_weight ? (\@d, \@w) : (\@d));
+      @d = (); @w = (defined($tmp) ? ($tmp) : ());
     }
   }
-  $hist->fill(\@d) if @d;
+  $hist->fill($pos_weight ? (\@d, \@w) : (\@d)) if @d;
 }
 
 my $desc = lc($opt->{desc}||'');
@@ -92,7 +114,7 @@ elsif ($desc =~ /^(?:center|number|left|right)$/) {
   elsif ($desc eq 'number') { $descriptions = [0..$hist->nbins-1]; }
   elsif ($desc eq 'left')   { $descriptions = $hist->bin_lower_boundaries; }
   elsif ($desc eq 'right')  { $descriptions = $hist->bin_upper_boundaries; }
-  
+
   foreach my $bin (0..$hist->nbins-1) {
     print "$descriptions->[$bin]\t$content->[$bin]\n";
   }
