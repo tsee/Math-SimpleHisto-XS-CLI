@@ -3,7 +3,6 @@ use strict;
 use warnings;
 use Getopt::Long qw(GetOptions);
 use Pod::Usage qw(pod2usage);
-use Term::Size ();
 use Math::SimpleHisto::XS;
 
 GetOptions(
@@ -53,7 +52,6 @@ for re-binning partially aggregated input data.
 
 my $readall = (!defined($opt->{min}) || !defined($opt->{max}));
 
-my ($tcols, $trows) = Term::Size::chars(*STDOUT{IO});
 my $hist;
 my $pos_weight = $opt->{xw};
 
