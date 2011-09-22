@@ -15,6 +15,7 @@ GetOptions(
   'numeric-format|nf=s',
   'style=s',
   'timestamp|ts',
+  'log',
   'man',
   'help|h',
 );
@@ -76,6 +77,12 @@ cased to use an arrow-like appearance.
 The C<--timestamp> option will case bin descriptions to be passed
 through C<localtime()> to convert from Unix timestamps to
 human-readable time strings.
+
+The C<--log> option draws the histogram on a logarithmic scale. It is
+advised to use the C<--min> option to specify an explicit minimum in
+this case, as the logarithm of C<0> is not drawable. If no C<--min>
+option is present, the C<--log> option will change the default minimum
+from C<0> to C<--min=auto>.
 
 =head1 EXAMPLE OUTPUT
 
@@ -140,9 +147,10 @@ my $numeric_format = $show_numeric ? $opt->{"numeric-format"} : "%.2f";
 
 my $convert_timestamps = $opt->{timestamp};
 
-# The $v_ prefixed variables below refer to "visible" widths in columns.
 
 # extract min/max/width info from input data
+my $logscale = $opt->{log};
+# The $v_ prefixed variables below refer to "visible" widths in columns.
 my $v_desc_width = 0;
 my $v_numeric_value_width  = 0;
 my $hist_total = 0;
@@ -187,16 +195,12 @@ $v_numeric_value_width = $show_numeric ? $v_numeric_value_width+2 : 0;
 # histogram.
 my $v_hist_width = $v_total_width - $v_desc_width - $v_numeric_value_width - 3;
 
-# format the output
-my $format = "%${v_desc_width}s: %${v_numeric_value_width}s|%-${v_hist_width}s|\n";
-my $hchar_body = $styledef->{character};
-my $hchar_end = $styledef->{end_character};
-my $hchar_end_len = length($hchar_end);
-
+# figure out the range of values in the visible part of the histogram
 my $min_display_value = $opt->{min} || 0;
 if ($min_display_value =~ /^auto$/i) {
   $min_display_value = $hist_min;
 }
+$min_display_value = log($min_display_value||$hist_min*0.99||1e-9) if $logscale;
 
 my $max_display_value = $opt->{max};
 if (not defined $max_display_value or $max_display_value =~ /^auto$/) {
@@ -205,11 +209,21 @@ if (not defined $max_display_value or $max_display_value =~ /^auto$/) {
 elsif ($max_display_value =~ /^total$/i) {
   $max_display_value = $hist_total;
 }
+$max_display_value = log($max_display_value) if $logscale;
 
 my $display_value_range = $max_display_value - $min_display_value;
 
+# format the output
+my $format = "%${v_desc_width}s: %${v_numeric_value_width}s|%-${v_hist_width}s|\n";
+my $hchar_body = $styledef->{character};
+my $hchar_end = $styledef->{end_character};
+my $hchar_end_len = length($hchar_end);
+
+# The actual output loop
 foreach my $row (@rows) {
   my ($desc, $value, $formatted_value) = @$row;
+  $value = log($value) if $logscale;
+
   my $hlen = int(($value-$min_display_value) / $display_value_range * $v_hist_width);
   $hlen = 0 if $hlen < 0;
   $hlen = $v_hist_width if $hlen > $v_hist_width;
