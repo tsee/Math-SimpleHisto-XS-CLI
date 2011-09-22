@@ -8,9 +8,10 @@ use Pod::Usage qw(pod2usage);
 GetOptions(
   my $opt = {},
   'sort',
+  'min=s',
+  'max=s',
   'width|w=i',
   'delimiter|d=s',
-  'scaletotal',
   'numeric-format|nf=s',
   'style=s',
   'man',
@@ -30,7 +31,8 @@ drawasciihist - draw simple text histograms
 
   generator | drawasciihist [--sort] [--width=<ncols>] [--style=<ident>]
                             [--numeric-format|nf=<printf format>]
-                            [--delimiter|d=<regexp>] [--scaletotal]
+                            [--delimiter|d=<regexp>]
+                            [--min=X] [--max=X]
 
 Together with the C<histify> tool, this can easily produce simple
 visualizations for quickly analyzing simple data in a console. Run the
@@ -43,9 +45,13 @@ the numeric bin content. If an input line has only one column, the
 bin description will be the bin number.
 
 By default, the output histogram will have a range from 0 to the maximum
-value in any bin. If you specify the C<--scaletotal> option, the bar
-length will instead be scaled to the sum of all bin contents, yet still
-start at 0.
+value in any bin. You can change the histogram range with the C<--min=X>
+and C<--max=X> options, providing numeric values for minimum and maximum.
+The C<--max> option also allows special values of C<auto> and C<total>.
+C<auto> is the default behaviour of --max and corresponds to the maximum
+bin content. C<--max=total> will use the sum of all histogram contents
+instead. The C<--min> option only understands C<auto> which forces it to
+use the smallest bin content as the lower display boundary.
 
 The output histogram width is determined automatically from your
 terminal size, if any. Otherwise assumes 80 columns. You can set the
@@ -178,14 +184,27 @@ my $hchar_body = $styledef->{character};
 my $hchar_end = $styledef->{end_character};
 my $hchar_end_len = length($hchar_end);
 
-my $min_display_value = 0; # warning: This 0 is important if scaletotal is in effect!?
-my $max_disiplay_value = $opt->{scaletotal} ? $hist_total : $hist_max;
-my $display_value_range = $max_disiplay_value - $min_display_value;
+my $min_display_value = $opt->{min} || 0;
+if ($opt->{min} =~ /^auto$/i) {
+  $min_display_value = $hist_min;
+}
+
+my $max_display_value = $opt->{max};
+if (not defined $max_display_value or $max_display_value =~ /^auto$/) {
+  $max_display_value = $hist_max;
+}
+elsif ($max_display_value =~ /^total$/i) {
+  $max_display_value = $hist_total;
+}
+
+my $display_value_range = $max_display_value - $min_display_value;
 
 foreach my $row (@rows) {
   my ($desc, $value, $formatted_value) = @$row;
   my $hlen = int(($value-$min_display_value) / $display_value_range * $v_hist_width);
   $hlen = 0 if $hlen < 0;
+  $hlen = $v_hist_width if $hlen > $v_hist_width;
+
   if ($hlen >= $hchar_end_len) {
     printf($format, $desc, $formatted_value, ($hchar_body x ($hlen-$hchar_end_len)) . $hchar_end);
   }
