@@ -1,5 +1,9 @@
 Revision history for Perl extension Math::SimpleHisto::XS::CLI.
 
+1.03  Thu Sep 22 14:06:00 2011
+  - --timestamp option of drawasciihist.
+  - --min=auto fix for drawasciihist.
+
 1.02  Thu Sep 22 09:01:00 2011
   - Document drawasciihist.
   - Various CLI changes for drawasciihist.
