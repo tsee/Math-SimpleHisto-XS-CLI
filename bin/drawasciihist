@@ -89,6 +89,7 @@ my $input_col_delimiter = "\\s+";
 $input_col_delimiter = qr/$opt->{delimiter}/ if defined($opt->{delimiter});
 $opt->{style} = '~' if not defined $opt->{style};
 
+# Determine the style to use for drawing the histogram
 my %styles = (
   '-' => {character => '-', end_character => '>'},
   '=' => {character => '=', end_character => '>'},
@@ -104,6 +105,8 @@ if (not exists $styles{$opt->{style}}) {
         . join("', '", keys %styles), "' and any single character.\n";
   }
 }
+
+my $styledef = $styles{$opt->{style}};
 
 # read all input
 my @rows;
@@ -123,6 +126,8 @@ while (<STDIN>) {
 
 my $show_numeric = defined($opt->{"numeric-format"});
 my $numeric_format = $show_numeric ? $opt->{"numeric-format"} : "%.2f";
+
+# The $v_ prefixed variables below refer to "visible" widths in columns.
 
 # extract min/max/width info from input data
 my $v_desc_width = 0;
@@ -161,26 +166,31 @@ if ($v_total_width < $v_desc_width + 3) {
   $v_total_width = $v_desc_width + 3;
 }
 
-my $vwidth = $show_numeric ? $v_numeric_value_width+2 : 0;
-my $hwidth = $v_total_width - $v_desc_width - $vwidth - 3;
-
-my $scale = $opt->{scaletotal} ? $hist_total : $hist_max;
+$v_numeric_value_width = $show_numeric ? $v_numeric_value_width+2 : 0;
+# The total output width is comprised of the bin description, possibly
+# the width of the numeric bin content, and the width of the actual
+# histogram.
+my $v_hist_width = $v_total_width - $v_desc_width - $v_numeric_value_width - 3;
 
 # format the output
-my $format = "%${v_desc_width}s: %${vwidth}s|%-${hwidth}s|\n";
-my $styledef = $styles{$opt->{style}};
-my $hchar = $styledef->{character};
-my $end_hchar = $styledef->{end_character};
-my $end_hchar_len = length($end_hchar);
+my $format = "%${v_desc_width}s: %${v_numeric_value_width}s|%-${v_hist_width}s|\n";
+my $hchar_body = $styledef->{character};
+my $hchar_end = $styledef->{end_character};
+my $hchar_end_len = length($hchar_end);
+
+my $min_display_value = 0; # warning: This 0 is important if scaletotal is in effect!?
+my $max_disiplay_value = $opt->{scaletotal} ? $hist_total : $hist_max;
+my $display_value_range = $max_disiplay_value - $min_display_value;
 
 foreach my $row (@rows) {
-  my $value = $row->[1];
-  my $hlen = int($value / $scale * $hwidth);
-  if ($hlen >= $end_hchar_len) {
-    printf($format, $row->[0], $row->[2], ($hchar x ($hlen-$end_hchar_len)) . $end_hchar);
+  my ($desc, $value, $formatted_value) = @$row;
+  my $hlen = int(($value-$min_display_value) / $display_value_range * $v_hist_width);
+  $hlen = 0 if $hlen < 0;
+  if ($hlen >= $hchar_end_len) {
+    printf($format, $desc, $formatted_value, ($hchar_body x ($hlen-$hchar_end_len)) . $hchar_end);
   }
   else {
-    printf($format, $row->[0], $row->[2], ($hchar x $hlen));
+    printf($format, $desc, $formatted_value, ($hchar_body x $hlen));
   }
 }
 
