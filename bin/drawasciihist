@@ -194,7 +194,7 @@ my $hchar_end = $styledef->{end_character};
 my $hchar_end_len = length($hchar_end);
 
 my $min_display_value = $opt->{min} || 0;
-if ($opt->{min} =~ /^auto$/i) {
+if ($min_display_value =~ /^auto$/i) {
   $min_display_value = $hist_min;
 }
 
