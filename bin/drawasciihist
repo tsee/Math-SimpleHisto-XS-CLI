@@ -14,6 +14,7 @@ GetOptions(
   'delimiter|d=s',
   'numeric-format|nf=s',
   'style=s',
+  'timestamp|ts',
   'man',
   'help|h',
 );
@@ -31,7 +32,7 @@ drawasciihist - draw simple text histograms
 
   generator | drawasciihist [--sort] [--width=<ncols>] [--style=<ident>]
                             [--numeric-format|nf=<printf format>]
-                            [--delimiter|d=<regexp>]
+                            [--delimiter|d=<regexp>] [--timestamp|ts]
                             [--min=X] [--max=X]
 
 Together with the C<histify> tool, this can easily produce simple
@@ -71,6 +72,10 @@ expression to the C<--delimiter=...> option.
 You can choose the character to be used for drawing histograms with the
 C<--style=[character]> option. The characters '-', '=', '~' are special
 cased to use an arrow-like appearance.
+
+The C<--timestamp> option will case bin descriptions to be passed
+through C<localtime()> to convert from Unix timestamps to
+human-readable time strings.
 
 =head1 EXAMPLE OUTPUT
 
@@ -133,6 +138,8 @@ while (<STDIN>) {
 my $show_numeric = defined($opt->{"numeric-format"});
 my $numeric_format = $show_numeric ? $opt->{"numeric-format"} : "%.2f";
 
+my $convert_timestamps = $opt->{timestamp};
+
 # The $v_ prefixed variables below refer to "visible" widths in columns.
 
 # extract min/max/width info from input data
@@ -142,6 +149,8 @@ my $hist_total = 0;
 my ($hist_max, $hist_min);
 foreach my $row (@rows) {
   my ($description, $value) = @$row;
+  $row->[0] = $description = localtime(int($description)) if $convert_timestamps;
+
   my $formatted_value = sprintf($numeric_format, $value);
 
   $v_desc_width = length($description) if length($description) > $v_desc_width;
