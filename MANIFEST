@@ -1,4 +1,5 @@
 bin/drawasciihist
+bin/drawsoothist
 bin/histify
 Changes
 lib/Math/SimpleHisto/XS/CLI.pm
