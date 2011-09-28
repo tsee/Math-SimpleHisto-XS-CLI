@@ -1,5 +1,11 @@
 Revision history for Perl extension Math::SimpleHisto::XS::CLI.
 
+1.04  Wed Sep 28 22:02:00 2011
+  - --log option for log-scale histogram plotting.
+  - --cumulative option for cumulative histograms.
+  - --dump-as-input option for reading histogram dumps as input.
+  - --dump option for writing out dumps.
+
 1.03  Thu Sep 22 14:06:00 2011
   - --timestamp option of drawasciihist.
   - --min=auto fix for drawasciihist.
