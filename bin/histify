@@ -1,6 +1,9 @@
 #!perl
 use strict;
 use warnings;
+
+package histify;
+
 use Getopt::Long qw(GetOptions);
 use Pod::Usage qw(pod2usage);
 use Math::SimpleHisto::XS;
