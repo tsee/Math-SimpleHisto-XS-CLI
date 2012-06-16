@@ -3,6 +3,7 @@ use strict;
 use warnings;
 
 package histify;
+our $VERSION = '1.05';
 
 use Getopt::Long qw(GetOptions);
 use Pod::Usage qw(pod2usage);

@@ -1,5 +1,6 @@
 Revision history for Perl extension Math::SimpleHisto::XS::CLI.
 
+1.05  Sat Jun 16 22:19:00 2012
   - --random option for randomly filled histograms
   - --pipe option as a convenience for both reading&writing dumps
   - --rebin option for rebinning

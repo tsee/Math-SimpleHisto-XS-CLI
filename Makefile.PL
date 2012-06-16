@@ -7,7 +7,7 @@ WriteMakefile(
     NAME              => $name,
     VERSION_FROM      => 'lib/Math/SimpleHisto/XS/CLI.pm', # finds $VERSION
     PREREQ_PM         => {
-      'Math::SimpleHisto::XS' => '1.21',
+      'Math::SimpleHisto::XS' => '1.28',
       'Test::More' => '0.88',
       'Term::Size' => '0.200',
       'Pod::Usage' => '0',

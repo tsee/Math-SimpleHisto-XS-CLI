@@ -1,8 +1,9 @@
 #!perl
-package drawasciihist;
-
 use strict;
 use warnings;
+
+package drawasciihist;
+our $VERSION = '1.05';
 use Getopt::Long qw(GetOptions);
 use Term::Size ();
 use Pod::Usage qw(pod2usage);
