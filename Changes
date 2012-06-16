@@ -1,5 +1,10 @@
 Revision history for Perl extension Math::SimpleHisto::XS::CLI.
 
+  - --random option for randomly filled histograms
+  - --pipe option as a convenience for both reading&writing dumps
+  - --rebin option for rebinning
+  - "range" description type
+
 1.04  Wed Sep 28 22:02:00 2011
   - --log option for log-scale histogram plotting.
   - --cumulative option for cumulative histograms.

@@ -16,20 +16,26 @@ GetOptions(
   'cumulative',
   'dump_as_input|dump-as-input|dumpasinput|d',
   'dump:s',
+  'rebin=i',
+  'random:i',
+  'pipe',
   'man',
   'soot', # This is undocumented on purpose. Use at your own risk.
 );
 
 pod2usage({-verbose => 2}) if $opt->{man};
 pod2usage({-verbose => 0}) if $opt->{help};
-if ($opt->{dump_as_input} and grep $opt->{$_}, qw(xw max min nbins)) {
+if ($opt->{dump_as_input} and grep exists($opt->{$_}), qw(xw max min nbins random)) {
   pod2usage({
     -exitval => 1,
     -verbose => 0,
-    -message => '--dump-as-input is not compatible with the --xw, --max, --min, or --nbins options'
+    -message => '--dump-as-input is not compatible with the --xw, --max, --min, --nbins or --random options'
   });
 }
 $opt->{nbins} = 10 if not defined $opt->{nbins} and not $opt->{dump_as_input};
+$opt->{dump} = $opt->{dump_as_input} = 1 if $opt->{pipe};
+$opt->{random} = 1000 if exists($opt->{random})
+                      and not $opt->{random};
 
 =pod
 
@@ -41,8 +47,9 @@ histify - generate simple histograms from streamed data
 
   generator | histify [--nbins=X] [--min=X] [--max=X] \
                       [--cumulative] \
-                      [--desc=<center|left|right|number|none>] \
-                      [--xw] [--dump-as-input]
+                      [--desc=<center|left|right|number|range|none>] \
+                      [--xw] [--dump-as-input] [--dump] [--pipe] \
+                      [--rebin=X] [--random=X]
 
 Reads whitespace-separated numbers from STDIN and generates a
 histogram. If no histogram boundaries are specified using
@@ -55,8 +62,9 @@ Prints the resulting histogram contents one bin per line.
 
 Using --desc=<type> adds an extra column to the output before the
 histogram content (separated by a tab) that can be any one of:
-The bin "number", the bin "center", the "left" bin boundary, or
-the "right" bin boundary.
+The bin "number", the bin "center", the "left" bin boundary,
+the "right" bin boundary, or the bin "range" (lower and upper
+boundary separated by a comma).
 
 The --xw option will cause histify to read alternating X values
 and weights instead of just X values from STDIN. This is useful
@@ -66,10 +74,25 @@ The --dump-as-input (or -d) option indicates that the input will
 not be of the form outlined above, but instead be the dump of a
 L<Math::SimpleHisto::XS> histogram of any format supported by the
 module. At this time, this option is not compatible with the
-C<--xw, --max, --min, --nbins> options.
+C<--xw, --max, --min, --nbins> options. The --dump option
+changes the output from a TSV format to a JSON dump that will
+be readable with --dump-as-input. The --pipe option enables both
+--dump-as-input and --dump.
+When the --dump-as-input option is enabled, then each line on STDIN
+may contain a histogram dump. If there is more than one, then
+histify will attempt to add the histograms. They must contain data in
+identical binning.
 
 The --cumulative option causes C<histify> to calculate the cumulative
 histogram of the input.
+
+The --rebin option causes C<histify> to rebin the histogram after
+the fact by a given factor which must be a divisor of the original
+number of bins.
+
+The --random option makes C<histify> create a new histogram with the
+supplied parameters (default: 10 bins between 0 and 1) and the
+provided number of random fills (default: 1000).
 
 =cut
 
@@ -80,15 +103,33 @@ my $pos_weight = $opt->{xw};
 
 # We don't know either min or max or neither
 if ($opt->{dump_as_input}) {
-  my $dump = join '', <STDIN>;
+  my $tmphist;
   #require Math::SimpleHisto::XS::Named; # TODO implement & test using this
-  foreach my $type (qw(json yaml simple native_pack)) {
-    binmode(STDIN) if $type eq 'native_pack';
-    eval {$hist = Math::SimpleHisto::XS->new_from_dump($type, $dump);};
-    last if defined $hist;
+  while (my $dump = <STDIN>) {
+    next if not $dump =~ /\S/;
+    foreach my $type (qw(json yaml simple)) {
+      eval {$tmphist = Math::SimpleHisto::XS->new_from_dump($type, $dump);};
+      last if defined $tmphist;
+    }
+    if (defined $tmphist) {
+      if ($hist) { $hist->add_histogram($tmphist) }
+      else { $hist = $tmphist }
+    }
   }
   die "Could not recreate histogram from input histogram dump string"
     if not defined $hist;
+}
+elsif ($opt->{random}) {
+  $opt->{min} ||= 0;
+  $opt->{max} ||= 1;
+  $hist = Math::SimpleHisto::XS->new(
+    min => $opt->{min},
+    max => $opt->{max},
+    nbins => $opt->{nbins},
+  );
+  my $min = $hist->min;
+  my $width = $hist->width;
+  $hist->fill($min + rand($width)) for 1..$opt->{random};
 }
 else {
   if ($readall) {
@@ -137,6 +178,8 @@ else {
   }
 }
 
+$hist = $hist->rebin($opt->{rebin}) if $opt->{rebin};
+
 $hist = $hist->cumulative() if $opt->{cumulative};
 
 if ($opt->{soot}) {
@@ -159,13 +202,14 @@ my $desc = lc($opt->{desc}||'');
 if ($desc eq '' or $desc eq 'none') {
   print "$_\n" for @{ $hist->all_bin_contents };
 }
-elsif ($desc =~ /^(?:center|number|left|right)$/) {
+elsif ($desc =~ /^(?:center|number|left|right|range)$/) {
   my $content = $hist->all_bin_contents;
   my $descriptions;
   if    ($desc eq 'center') { $descriptions = $hist->bin_centers; }
   elsif ($desc eq 'number') { $descriptions = [0..$hist->nbins-1]; }
   elsif ($desc eq 'left')   { $descriptions = $hist->bin_lower_boundaries; }
   elsif ($desc eq 'right')  { $descriptions = $hist->bin_upper_boundaries; }
+  elsif ($desc eq 'range')  { $descriptions = [ map $hist->bin_lower_boundary($_).",".$hist->bin_upper_boundary($_), 0..($hist->nbins-1) ] }
 
   foreach my $bin (0..$hist->nbins-1) {
     print "$descriptions->[$bin]\t$content->[$bin]\n";
