@@ -8,6 +8,7 @@ our $VERSION = '1.05';
 use Getopt::Long qw(GetOptions);
 use Pod::Usage qw(pod2usage);
 use Math::SimpleHisto::XS;
+use Math::SimpleHisto::XS::CLI qw(:all);
 
 GetOptions(
   my $opt = {},
@@ -38,8 +39,6 @@ if ($opt->{dump_as_input} and grep exists($opt->{$_}), qw(xw max min nbins rando
 }
 $opt->{nbins} = 10 if not defined $opt->{nbins} and not $opt->{dump_as_input};
 $opt->{dump} = $opt->{dump_as_input} = 1 if $opt->{pipe};
-$opt->{random} = 1000 if exists($opt->{random})
-                      and not $opt->{random};
 
 =pod
 
@@ -103,82 +102,20 @@ provided number of random fills (default: 1000).
 my $readall = (!defined($opt->{min}) || !defined($opt->{max}));
 
 my $hist;
-my $pos_weight = $opt->{xw};
 
 # We don't know either min or max or neither
 if ($opt->{dump_as_input}) {
-  my $tmphist;
-  #require Math::SimpleHisto::XS::Named; # TODO implement & test using this
-  while (my $dump = <STDIN>) {
-    next if not $dump =~ /\S/;
-    foreach my $type (qw(json yaml simple)) {
-      eval {$tmphist = Math::SimpleHisto::XS->new_from_dump($type, $dump);};
-      last if defined $tmphist;
-    }
-    if (defined $tmphist) {
-      if ($hist) { $hist->add_histogram($tmphist) }
-      else { $hist = $tmphist }
-    }
-  }
-  die "Could not recreate histogram from input histogram dump string"
-    if not defined $hist;
+  $hist = histogram_from_dumps_fh(\*STDIN);
 }
-elsif ($opt->{random}) {
-  $opt->{min} ||= 0;
-  $opt->{max} ||= 1;
-  $hist = Math::SimpleHisto::XS->new(
-    min => $opt->{min},
-    max => $opt->{max},
-    nbins => $opt->{nbins},
-  );
-  my $min = $hist->min;
-  my $width = $hist->width;
-  $hist->fill($min + rand($width)) for 1..$opt->{random};
+elsif (exists $opt->{random}) {
+  $hist = histogram_from_random_data($opt, $opt->{random});
 }
 else {
   if ($readall) {
-    my (@d, @w);
-    my $i = 0;
-    while (<STDIN>) {
-      chomp;
-      s/^\s+//; s/\s+$//;
-      if ($pos_weight) {
-        push @{ (++$i % 2) ? \@d : \@w }, $_ for split " ", $_;
-      }
-      else {
-        push @d, split " ", $_;
-      }
-    }
-    exit(0) if not @d;
-    my ($min, $max) = minmax(@d);
-    $opt->{min} = $min if not defined $opt->{min};
-    $opt->{max} = $max if not defined $opt->{max};
-
-    $hist = Math::SimpleHisto::XS->new(map {$_ => $opt->{$_}} qw(nbins min max));
-    $hist->fill($pos_weight ? (\@d, \@w) : (\@d));
+    $hist = histogram_slurp_from_fh($opt, \*STDIN);
   }
   else { # we have proper histogram boundaries
-    use constant BATCHSIZE => 1000;
-    $hist = Math::SimpleHisto::XS->new(map {$_ => $opt->{$_}} qw(nbins min max));
-    my (@d, @w);
-    my $i = 0;
-    while (<STDIN>) {
-      chomp;
-      my @row = split " ", $_;
-      if ($pos_weight) {
-        push @{ (++$i % 2) ? \@d : \@w }, $_ for split " ", $_;
-      }
-      else {
-        push @d, split " ", $_;
-      }
-      if (@d >= BATCHSIZE) {
-        my $tmp;
-        $tmp = pop(@w) if @d != @w;
-        $hist->fill($pos_weight ? (\@d, \@w) : (\@d));
-        @d = (); @w = (defined($tmp) ? ($tmp) : ());
-      }
-    }
-    $hist->fill($pos_weight ? (\@d, \@w) : (\@d)) if @d;
+    $hist = histogram_from_fh($opt, \*STDIN);
   }
 }
 
@@ -187,18 +124,14 @@ $hist = $hist->rebin($opt->{rebin}) if $opt->{rebin};
 $hist = $hist->cumulative() if $opt->{cumulative};
 
 if ($opt->{soot}) {
-  my $h = $hist->to_soot;
-  my $cv = TCanvas->new;
-  $h->Draw();
-  my $app = $SOOT::gApplication = $SOOT::gApplication; # silence warnings
-  $app->Run();
+  display_histogram_using_soot($hist);
   exit;
 }
 
 if (exists $opt->{dump}) {
   my $type = $opt->{dump};
   $type = 'json' if not defined $type or $type eq '';
-  print $hist->dump($type),"\n";
+  print $hist->dump($type), "\n";
   exit(0);
 }
 
@@ -221,16 +154,5 @@ elsif ($desc =~ /^(?:center|number|left|right|range)$/) {
 }
 else {
   die "Invalid description mode";
-}
-
-
-
-sub minmax {
-  my ($min, $max);
-  for (@_) {
-    $min = $_ if not defined $min or $min > $_;
-    $max = $_ if not defined $max or $max < $_;
-  }
-  return($min, $max);
 }
 
