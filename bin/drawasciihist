@@ -7,6 +7,8 @@ our $VERSION = '1.05';
 use Getopt::Long qw(GetOptions);
 use Term::Size ();
 use Pod::Usage qw(pod2usage);
+use Math::SimpleHisto::XS;
+use Math::SimpleHisto::XS::CLI qw(:all);
 
 GetOptions(
   my $opt = {},
@@ -108,26 +110,8 @@ from C<0> to C<--min=auto>.
 
 my $input_col_delimiter = "\\s+";
 $input_col_delimiter = qr/$opt->{delimiter}/ if defined($opt->{delimiter});
-$opt->{style} = '~' if not defined $opt->{style};
 
-# Determine the style to use for drawing the histogram
-my %styles = (
-  '-' => {character => '-', end_character => '>'},
-  '=' => {character => '=', end_character => '>'},
-  '~' => {character => '~', end_character => '>'},
-);
-
-if (not exists $styles{$opt->{style}}) {
-  if (length($opt->{style}) == 1) {
-    $styles{$opt->{style}} = {character => $opt->{style}, end_character => $opt->{style}};
-  }
-  else {
-    die "Invalid histogram style '$opt->{style}'. Valid styles: '"
-        . join("', '", keys %styles), "' and any single character.\n";
-  }
-}
-
-my $styledef = $styles{$opt->{style}};
+my $styledef = intuit_ascii_style($opt->{style});
 
 # read all input
 my @rows;

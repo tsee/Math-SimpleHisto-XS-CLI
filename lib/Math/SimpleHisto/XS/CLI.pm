@@ -18,6 +18,8 @@ our @EXPORT_OK = qw(
   histogram_slurp_from_fh
   minmax
   display_histogram_using_soot
+
+  intuit_ascii_style
 );
 our %EXPORT_TAGS = (
   'all' => \@EXPORT_OK,
@@ -53,7 +55,7 @@ sub histogram_from_random_data {
   my %opt = %$histopt;
   $opt{min} ||= 0;
   $opt{max} ||= 1;
-  $random_samples = 1000 if not defined $random_samples;
+  $random_samples = 1000 if not $random_samples;
 
   my $hist = Math::SimpleHisto::XS->new(
     min   => $opt{min},
@@ -153,6 +155,29 @@ sub display_histogram_using_soot {
   exit;
 }
 
+our %AsciiStyles = (
+  '-' => {character => '-', end_character => '>'},
+  '=' => {character => '=', end_character => '>'},
+  '~' => {character => '~', end_character => '>'},
+);
+
+# Determine the style to use for drawing the histogram
+sub intuit_ascii_style {
+  my ($style_option) = @_;
+  $style_option = '~' if not defined $style_option;
+  if (not exists $AsciiStyles{$style_option}) {
+    if (length($style_option) == 1) {
+      $AsciiStyles{$style_option} = {character => $style_option, end_character => $style_option};
+    }
+    else {
+      die "Invalid histogram style '$style_option'. Valid styles: '"
+          . join("', '", keys %AsciiStyles), "' and any single character.\n";
+    }
+  }
+
+  my $styledef = $AsciiStyles{$style_option};
+  return $styledef;
+}
 
 1;
 __END__
