@@ -1,0 +1,194 @@
+#!perl
+use strict;
+use warnings;
+
+package continuoushist;
+our $VERSION = '1.05';
+use Getopt::Long qw(GetOptions);
+use Term::Size ();
+use Pod::Usage qw(pod2usage);
+use Math::SimpleHisto::XS;
+use Math::SimpleHisto::XS::CLI qw(:all);
+use Term::ANSIScreen qw(:color :cursor :screen);
+
+GetOptions(
+  my $opt = {},
+  'sort',
+  'width|w=i',
+  'numeric-format|nf=s',
+  'style=s',
+  'timestamp|ts',
+  'log',
+
+  'min=f',
+  'max=f',
+  'nbins=i',
+  'desc=s',
+  'xw',
+  'cumulative',
+  'stepsize=i',
+  #'dump_as_input|dump-as-input|dumpasinput|d',
+  #'rebin=i', # ???
+
+  'man',
+  'help|h',
+);
+
+pod2usage({-verbose => 2}) if $opt->{man};
+pod2usage({-verbose => 0}) if $opt->{help};
+
+my @missing = grep !defined($opt->{$_}), qw(min max);
+if (@missing) {
+  pod2usage({-verbose => 0, -msg => "Mandatory options missing: '"
+                                    . join("', '", map "--$_", @missing) . "'"});
+}
+
+=pod
+
+=head1 NAME
+
+continuoushist - simple text histograms -- updating as data comes in
+
+=head1 SYNOPSIS
+
+  generator | continuoushist [--sort] [--width=<ncols>] [--style=<ident>]
+                             [--numeric-format|nf=<printf format>]
+                             [--delimiter|d=<regexp>] [--timestamp|ts]
+                             --min=X --max=X
+
+Together with the C<histify> tool, this can easily produce simple
+visualizations for quickly analyzing simple data in a console. Run the
+script with the C<--man> option to see an example.
+
+The tool expects to read histogram data from STDIN, one bin per line.
+If a given input line has two or more columns (see the C<--delimiter>
+option), the first column will be used as the bin name, the second as
+the numeric bin content. If an input line has only one column, the
+bin description will be the bin number.
+
+By default, the output histogram will have a range from 0 to the maximum
+value in any bin. You can change the histogram range with the C<--min=X>
+and C<--max=X> options, providing numeric values for minimum and maximum.
+The C<--max> option also allows special values of C<auto> and C<total>.
+C<auto> is the default behaviour of --max and corresponds to the maximum
+bin content. C<--max=total> will use the sum of all histogram contents
+instead. The C<--min> option only understands C<auto> which forces it to
+use the smallest bin content as the lower display boundary.
+
+The output histogram width is determined automatically from your
+terminal size, if any. Otherwise assumes 80 columns. You can set the
+width explicitly using C<--width=ncols>. The C<--sort> option sorts
+the bins by content instead of input order.
+
+If the C<--numeric-format> option is present, then the actual numeric
+value is included in the histogram using the given C<printf> format.
+For positive integers, you would use C<--nf='%u'>, for signed integers,
+use C<--nf='%i'> and for fixed precision floats, you can use something
+like C<--nf='%.2f'>.
+
+The delimiter for splitting an input line into columns defaults to
+any whitespace. You can change that by supplying a Perl regular
+expression to the C<--delimiter=...> option.
+
+You can choose the character to be used for drawing histograms with the
+C<--style=[character]> option. The characters '-', '=', '~' are special
+cased to use an arrow-like appearance.
+
+The C<--timestamp> option will case bin descriptions to be passed
+through C<localtime()> to convert from Unix timestamps to
+human-readable time strings.
+
+The C<--log> option draws the histogram on a logarithmic scale. It is
+advised to use the C<--min> option to specify an explicit minimum in
+this case, as the logarithm of C<0> is not drawable. If no C<--min>
+option is present, the C<--log> option will change the default minimum
+from C<0> to C<--min=auto>.
+
+=head1 EXAMPLE OUTPUT
+
+  $ perl -e 'print $_*(rand()), "\n" for 1..100000' \
+          | histify | drawasciihist -nf='%u' -w=70
+
+   1:   33155|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>|
+   2:   19010|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>                         |
+   3:   13972|~~~~~~~~~~~~~~~~~~~~~~~>                                  |
+   4:   10476|~~~~~~~~~~~~~~~~~>                                        |
+   5:    7919|~~~~~~~~~~~~>                                             |
+   6:    5959|~~~~~~~~~>                                                |
+   7:    4446|~~~~~~>                                                   |
+   8:    2913|~~~~>                                                     |
+   9:    1611|~>                                                        |
+  10:     538|                                                          |
+
+=cut
+
+
+# Get CLI options
+if ($opt->{dump_as_input} and grep exists($opt->{$_}), qw(xw max min nbins)) {
+  pod2usage({
+    -exitval => 1,
+    -verbose => 0,
+    -message => '--dump-as-input is not compatible with the --xw, --max, --min, or --nbins options'
+  });
+}
+
+$opt->{"show-numeric"} = defined($opt->{"numeric-format"});
+$opt->{"numeric-format"} = $opt->{"show-numeric"} ? $opt->{"numeric-format"} : "%.2f";
+
+my $styledef = intuit_ascii_style($opt->{style});
+$opt->{style} = $styledef;
+
+$opt->{nbins} = ( intuit_output_size(\*STDOUT) )[1] - 1 if not $opt->{nbins} and not $opt->{dump_as_input};
+$opt->{stepsize} ||= 1;
+
+my $hist = Math::SimpleHisto::XS->new(
+  nbins => $opt->{nbins},
+  min => $opt->{min},
+  max => $opt->{max},
+);
+
+my $desc = lc($opt->{desc}||'');
+
+cls();
+while (1) {
+  locate(1,1);
+
+  #if ($opt->{dump_as_input}) {
+  #  $hist = histogram_from_dumps_fh(\*STDIN);
+  #}
+  # else {
+  histogram_from_fh($opt, \*STDIN, $hist);
+  #}
+
+  my @rows;
+  if ($desc eq '' or $desc eq 'none') {
+    my $content = $hist->all_bin_contents;
+    @rows = map [$_+1, $content->[$_]], 0..$#$content;
+  }
+  elsif ($desc =~ /^(?:center|number|left|right|range)$/) {
+    my $content = $hist->all_bin_contents;
+    my $descriptions;
+    if    ($desc eq 'center') { $descriptions = $hist->bin_centers; }
+    elsif ($desc eq 'number') { $descriptions = [0..$hist->nbins-1]; }
+    elsif ($desc eq 'left')   { $descriptions = $hist->bin_lower_boundaries; }
+    elsif ($desc eq 'right')  { $descriptions = $hist->bin_upper_boundaries; }
+    elsif ($desc eq 'range')  { $descriptions = [ map $hist->bin_lower_boundary($_).",".$hist->bin_upper_boundary($_), 0..($hist->nbins-1) ] }
+
+    @rows = map {$descriptions->[$_], $content->[$_]} 0..($hist->nbins-1);
+  }
+  else {
+    die "Invalid description mode";
+  }
+  #use Data::Dumper;
+  #warn Dumper \@rows;
+
+  # The drawing code would use this as a drawing max min/max setting
+  local $opt->{min};
+  local $opt->{max};
+
+  draw_ascii_histogram(
+    \*STDOUT,
+    \@rows,
+    $opt
+  );
+}

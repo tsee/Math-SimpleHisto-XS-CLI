@@ -103,7 +103,7 @@ my $readall = (!defined($opt->{min}) || !defined($opt->{max}));
 
 my $hist;
 
-# We don't know either min or max or neither
+
 if ($opt->{dump_as_input}) {
   $hist = histogram_from_dumps_fh(\*STDIN);
 }
@@ -111,7 +111,7 @@ elsif (exists $opt->{random}) {
   $hist = histogram_from_random_data($opt, $opt->{random});
 }
 else {
-  if ($readall) {
+  if ($readall) { # We don't know either min or max or neither
     $hist = histogram_slurp_from_fh($opt, \*STDIN);
   }
   else { # we have proper histogram boundaries

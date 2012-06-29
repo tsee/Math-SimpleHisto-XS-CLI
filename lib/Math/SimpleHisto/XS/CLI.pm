@@ -20,7 +20,7 @@ our @EXPORT_OK = qw(
   display_histogram_using_soot
 
   intuit_ascii_style
-  intuit_output_width
+  intuit_output_size
   draw_ascii_histogram 
 );
 our %EXPORT_TAGS = (
@@ -73,18 +73,39 @@ sub histogram_from_random_data {
 }
 
 sub histogram_from_fh {
-  my ($histopt, $fh) = @_;
+  my ($histopt, $fh, $hist) = @_;
   
-  my $hist = Math::SimpleHisto::XS->new(map {$_ => $histopt->{$_}} qw(nbins min max));
+  $hist ||= Math::SimpleHisto::XS->new(map {$_ => $histopt->{$_}} qw(nbins min max));
 
   my $pos_weight = $histopt->{xw};
   my (@coords, @weights);
   my $i = 0;
-  while (<STDIN>) {
+
+  my ($rbits);
+  my $step_size = $histopt->{stepsize};
+  if ($step_size) {
+    $rbits = '';
+    vec($rbits, fileno($fh), 1) = 1;
+  }
+
+  while (1) {
+    if ($step_size) {
+      my ($havedata, undef) = select($rbits, undef, undef, 0.1);
+      if (not $havedata) {
+        last if $i >= 1;
+        redo;
+      }
+      $_ = <$fh>;
+    }
+    else {
+      $_ = <$fh>;
+    }
+    last if not defined $_;
     chomp;
     my @row = split " ", $_;
+    ++$i;
     if ($pos_weight) {
-      push @{ (++$i % 2) ? \@coords : \@weights }, $_ for split " ", $_;
+      push @{ ($i % 2) ? \@coords : \@weights }, $_ for split " ", $_;
     }
     else {
       push @coords, split " ", $_;
@@ -97,6 +118,8 @@ sub histogram_from_fh {
       @coords = ();
       @weights = (defined($tmp) ? ($tmp) : ());
     }
+
+    last if $step_size and $i >= $step_size;
   }
 
   $hist->fill($pos_weight ? (\@coords, \@weights) : (\@coords))
@@ -183,7 +206,7 @@ sub intuit_ascii_style {
 }
 
 
-sub intuit_output_width {
+sub intuit_output_size {
   my ($ofh) = @_;
 
   $ofh ||= \*STDOUT;
@@ -194,9 +217,10 @@ sub intuit_output_width {
   }
   else {
     $terminal_columns = 80;
+    $terminal_rows = 10;
   }
 
-  return $terminal_columns;
+  return ($terminal_columns, $terminal_rows);
 }
 
 # relevant options:
@@ -243,7 +267,7 @@ sub draw_ascii_histogram {
   # sort by value if desired
   @$rows = sort {$a->[1] <=> $b->[1]} @$rows if $histopt->{sort};
 
-  my $v_total_width = $histopt->{width} || intuit_output_width($ofh)-2;
+  my $v_total_width = $histopt->{width} || (intuit_output_size($ofh))[0] - 2;
 
   if ($v_total_width < $v_desc_width + 3) {
     warn "Terminal or desired width is insufficient.\n";
@@ -283,7 +307,7 @@ sub draw_ascii_histogram {
   # The actual output loop
   foreach my $row (@$rows) {
     my ($desc, $value, $formatted_value) = @$row;
-    $value = log($value) if $logscale;
+    $value = log($value||1e-15) if $logscale;
 
     my $hlen = int(($value-$min_display_value) / $display_value_range * $v_hist_width);
     $hlen = 0 if $hlen < 0;
