@@ -20,6 +20,8 @@ our @EXPORT_OK = qw(
   display_histogram_using_soot
 
   intuit_ascii_style
+  intuit_output_width
+  draw_ascii_histogram 
 );
 our %EXPORT_TAGS = (
   'all' => \@EXPORT_OK,
@@ -155,6 +157,7 @@ sub display_histogram_using_soot {
   exit;
 }
 
+
 our %AsciiStyles = (
   '-' => {character => '-', end_character => '>'},
   '=' => {character => '=', end_character => '>'},
@@ -178,6 +181,124 @@ sub intuit_ascii_style {
   my $styledef = $AsciiStyles{$style_option};
   return $styledef;
 }
+
+
+sub intuit_output_width {
+  my ($ofh) = @_;
+
+  $ofh ||= \*STDOUT;
+  # figure out output width
+  my ($terminal_columns, $terminal_rows);
+  if (-t $ofh) {
+    ($terminal_columns, $terminal_rows) = Term::Size::chars($ofh);
+  }
+  else {
+    $terminal_columns = 80;
+  }
+
+  return $terminal_columns;
+}
+
+# relevant options:
+# - sort
+# - width
+# - min
+# - max
+# - numeric-format
+# - show-numeric
+# - timestamp
+# - log
+# - style
+sub draw_ascii_histogram {
+  my ($ofh, $rows, $histopt) = @_;
+
+  my $convert_timestamps = $histopt->{timestamp};
+  my $show_numeric = $histopt->{"show-numeric"};
+  my $numeric_format = $histopt->{"numeric-format"};
+  my $logscale = $histopt->{log};
+  my $styledef = $histopt->{style};
+
+  # extract min/max/width info from input data
+  # The $v_ prefixed variables below refer to "visible" widths in columns.
+  my $v_desc_width = 0;
+  my $v_numeric_value_width  = 0;
+  my $hist_total = 0;
+
+  my ($hist_max, $hist_min);
+  foreach my $row (@$rows) {
+    my ($description, $value) = @$row;
+    $row->[0] = $description = localtime(int($description)) if $convert_timestamps;
+
+    my $formatted_value = sprintf($numeric_format, $value);
+
+    $v_desc_width = length($description) if length($description) > $v_desc_width;
+    $v_numeric_value_width  = length($formatted_value) if length($formatted_value) > $v_numeric_value_width;
+    $hist_min = $value if !defined $hist_min or $value < $hist_min;
+    $hist_max = $value if !defined $hist_max or $value > $hist_max;
+    $hist_total += $value;
+    # extend each row by the formatted numeric value -- just in case.
+    push @$row, $show_numeric ? $formatted_value : '';
+  }
+
+  # sort by value if desired
+  @$rows = sort {$a->[1] <=> $b->[1]} @$rows if $histopt->{sort};
+
+  my $v_total_width = $histopt->{width} || intuit_output_width($ofh)-2;
+
+  if ($v_total_width < $v_desc_width + 3) {
+    warn "Terminal or desired width is insufficient.\n";
+    $v_total_width = $v_desc_width + 3;
+  }
+
+  $v_numeric_value_width = $show_numeric ? $v_numeric_value_width+2 : 0;
+  # The total output width is comprised of the bin description, possibly
+  # the width of the numeric bin content, and the width of the actual
+  # histogram.
+  my $v_hist_width = $v_total_width - $v_desc_width - $v_numeric_value_width - 3;
+
+  # figure out the range of values in the visible part of the histogram
+  my $min_display_value = $histopt->{min} || 0;
+  if ($min_display_value =~ /^auto$/i) {
+    $min_display_value = $hist_min;
+  }
+  $min_display_value = log($min_display_value||$hist_min*0.99||1e-9) if $logscale;
+
+  my $max_display_value = $histopt->{max};
+  if (not defined $max_display_value or $max_display_value =~ /^auto$/) {
+    $max_display_value = $hist_max;
+  }
+  elsif ($max_display_value =~ /^total$/i) {
+    $max_display_value = $hist_total;
+  }
+  $max_display_value = log($max_display_value) if $logscale;
+
+  my $display_value_range = $max_display_value - $min_display_value;
+
+  # format the output
+  my $format = "%${v_desc_width}s: %${v_numeric_value_width}s|%-${v_hist_width}s|\n";
+  my $hchar_body = $styledef->{character};
+  my $hchar_end = $styledef->{end_character};
+  my $hchar_end_len = length($hchar_end);
+
+  # The actual output loop
+  foreach my $row (@$rows) {
+    my ($desc, $value, $formatted_value) = @$row;
+    $value = log($value) if $logscale;
+
+    my $hlen = int(($value-$min_display_value) / $display_value_range * $v_hist_width);
+    $hlen = 0 if $hlen < 0;
+    $hlen = $v_hist_width if $hlen > $v_hist_width;
+
+    if ($hlen >= $hchar_end_len) {
+      printf($format, $desc, $formatted_value, ($hchar_body x ($hlen-$hchar_end_len)) . $hchar_end);
+    }
+    else {
+      printf($format, $desc, $formatted_value, ($hchar_body x $hlen));
+    }
+  }
+
+}
+
 
 1;
 __END__
