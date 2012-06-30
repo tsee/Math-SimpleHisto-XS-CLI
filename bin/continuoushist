@@ -148,7 +148,7 @@ my $hist = Math::SimpleHisto::XS->new(
 );
 
 my $desc = lc($opt->{desc}||'');
-
+my $cumulative = $opt->{cumulative};
 cls();
 while (1) {
   locate(1,1);
@@ -160,21 +160,26 @@ while (1) {
   histogram_from_fh($opt, \*STDIN, $hist);
   #}
 
+  my $draw_hist = $hist;
+  if ($cumulative) {
+    $draw_hist = $hist->cumulative();
+  }
+
   my @rows;
   if ($desc eq '' or $desc eq 'none') {
-    my $content = $hist->all_bin_contents;
+    my $content = $draw_hist->all_bin_contents;
     @rows = map [$_+1, $content->[$_]], 0..$#$content;
   }
   elsif ($desc =~ /^(?:center|number|left|right|range)$/) {
-    my $content = $hist->all_bin_contents;
+    my $content = $draw_hist->all_bin_contents;
     my $descriptions;
-    if    ($desc eq 'center') { $descriptions = $hist->bin_centers; }
-    elsif ($desc eq 'number') { $descriptions = [0..$hist->nbins-1]; }
-    elsif ($desc eq 'left')   { $descriptions = $hist->bin_lower_boundaries; }
-    elsif ($desc eq 'right')  { $descriptions = $hist->bin_upper_boundaries; }
-    elsif ($desc eq 'range')  { $descriptions = [ map $hist->bin_lower_boundary($_).",".$hist->bin_upper_boundary($_), 0..($hist->nbins-1) ] }
+    if    ($desc eq 'center') { $descriptions = $draw_hist->bin_centers; }
+    elsif ($desc eq 'number') { $descriptions = [0..$draw_hist->nbins-1]; }
+    elsif ($desc eq 'left')   { $descriptions = $draw_hist->bin_lower_boundaries; }
+    elsif ($desc eq 'right')  { $descriptions = $draw_hist->bin_upper_boundaries; }
+    elsif ($desc eq 'range')  { $descriptions = [ map $draw_hist->bin_lower_boundary($_).",".$draw_hist->bin_upper_boundary($_), 0..($draw_hist->nbins-1) ] }
 
-    @rows = map {$descriptions->[$_], $content->[$_]} 0..($hist->nbins-1);
+    @rows = map {$descriptions->[$_], $content->[$_]} 0..($draw_hist->nbins-1);
   }
   else {
     die "Invalid description mode";
