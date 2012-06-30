@@ -52,77 +52,53 @@ continuoushist - simple text histograms -- updating as data comes in
 
   generator | continuoushist [--sort] [--width=<ncols>] [--style=<ident>]
                              [--numeric-format|nf=<printf format>]
-                             [--timestamp|ts]
-                             [--log] [--nbins=X]
-                             --min=X --max=X
-  'desc=s',
-  'xw',
-  'cumulative',
-  'stepsize=i',
+                             [--timestamp|ts] [--xw]
+                             [--stepsize=X] [--log] [--cumulative]
+                             [--nbins=X] --min=X --max=X
 
-Together with the C<histify> tool, this can easily produce simple
-visualizations for quickly analyzing simple data in a console. Run the
-script with the C<--man> option to see an example.
+Reads whitespace-separated numbers from STDIN, generates a
+histogram, and continuously re-renders an ASCII histogram
+in your terminal as
+it keeps reading data. Consider it a combination of the C<histify>
+and the C<drawasciihist> tools. You may want to read up on those
+separately before continuing with this.
 
-The tool expects to read histogram data from STDIN, one bin per line.
-If a given input line has two or more columns (see the C<--delimiter>
-option), the first column will be used as the bin name, the second as
-the numeric bin content. If an input line has only one column, the
-bin description will be the bin number.
+Histogram boundaries need to be specified using the --min and
+--max options. The number of bins defaults to the height of your
+terminal.
 
-By default, the output histogram will have a range from 0 to the maximum
-value in any bin. You can change the histogram range with the C<--min=X>
-and C<--max=X> options, providing numeric values for minimum and maximum.
-The C<--max> option also allows special values of C<auto> and C<total>.
-C<auto> is the default behaviour of --max and corresponds to the maximum
-bin content. C<--max=total> will use the sum of all histogram contents
-instead. The C<--min> option only understands C<auto> which forces it to
-use the smallest bin content as the lower display boundary.
+Using --desc=<type> adds an extra column to the output before the
+histogram content (separated by a tab) that can be any one of:
+The bin "number", the bin "center", the "left" bin boundary,
+the "right" bin boundary, or the bin "range" (lower and upper
+boundary separated by a comma).
+
+The --xw option will cause continuoushist to read alternating X values
+and weights instead of just X values from STDIN.
+
+The --cumulative option causes continuoushist to display the
+cumulative histogram of the input.
 
 The output histogram width is determined automatically from your
 terminal size, if any. Otherwise assumes 80 columns. You can set the
-width explicitly using C<--width=ncols>. The C<--sort> option sorts
+width explicitly using --width=ncols. The --sort option sorts
 the bins by content instead of input order.
 
-If the C<--numeric-format> option is present, then the actual numeric
+If the --numeric-format option is present, then the actual numeric
 value is included in the histogram using the given C<printf> format.
 For positive integers, you would use C<--nf='%u'>, for signed integers,
 use C<--nf='%i'> and for fixed precision floats, you can use something
 like C<--nf='%.2f'>.
 
-The delimiter for splitting an input line into columns defaults to
-any whitespace. You can change that by supplying a Perl regular
-expression to the C<--delimiter=...> option.
-
 You can choose the character to be used for drawing histograms with the
 C<--style=[character]> option. The characters '-', '=', '~' are special
 cased to use an arrow-like appearance.
 
-The C<--timestamp> option will case bin descriptions to be passed
+The --timestamp option will case bin descriptions to be passed
 through C<localtime()> to convert from Unix timestamps to
 human-readable time strings.
 
-The C<--log> option draws the histogram on a logarithmic scale. It is
-advised to use the C<--min> option to specify an explicit minimum in
-this case, as the logarithm of C<0> is not drawable. If no C<--min>
-option is present, the C<--log> option will change the default minimum
-from C<0> to C<--min=auto>.
-
-=head1 EXAMPLE OUTPUT
-
-  $ perl -e 'print $_*(rand()), "\n" for 1..100000' \
-          | histify | drawasciihist -nf='%u' -w=70
-
-   1:   33155|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>|
-   2:   19010|~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>                         |
-   3:   13972|~~~~~~~~~~~~~~~~~~~~~~~>                                  |
-   4:   10476|~~~~~~~~~~~~~~~~~>                                        |
-   5:    7919|~~~~~~~~~~~~>                                             |
-   6:    5959|~~~~~~~~~>                                                |
-   7:    4446|~~~~~~>                                                   |
-   8:    2913|~~~~>                                                     |
-   9:    1611|~>                                                        |
-  10:     538|                                                          |
+The --log option draws the histogram on a logarithmic scale.
 
 =cut
 
