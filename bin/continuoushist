@@ -17,7 +17,6 @@ GetOptions(
   'width|w=i',
   'numeric-format|nf=s',
   'style=s',
-  'timestamp|ts',
   'log',
 
   'min=f',
@@ -53,8 +52,13 @@ continuoushist - simple text histograms -- updating as data comes in
 
   generator | continuoushist [--sort] [--width=<ncols>] [--style=<ident>]
                              [--numeric-format|nf=<printf format>]
-                             [--delimiter|d=<regexp>] [--timestamp|ts]
+                             [--timestamp|ts]
+                             [--log] [--nbins=X]
                              --min=X --max=X
+  'desc=s',
+  'xw',
+  'cumulative',
+  'stepsize=i',
 
 Together with the C<histify> tool, this can easily produce simple
 visualizations for quickly analyzing simple data in a console. Run the
@@ -179,7 +183,7 @@ while (1) {
     elsif ($desc eq 'right')  { $descriptions = $draw_hist->bin_upper_boundaries; }
     elsif ($desc eq 'range')  { $descriptions = [ map $draw_hist->bin_lower_boundary($_).",".$draw_hist->bin_upper_boundary($_), 0..($draw_hist->nbins-1) ] }
 
-    @rows = map {$descriptions->[$_], $content->[$_]} 0..($draw_hist->nbins-1);
+    @rows = map [$descriptions->[$_], $content->[$_]], 0..($draw_hist->nbins-1);
   }
   else {
     die "Invalid description mode";
