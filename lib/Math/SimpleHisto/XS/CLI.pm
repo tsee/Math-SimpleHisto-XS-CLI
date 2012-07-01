@@ -22,6 +22,7 @@ our @EXPORT_OK = qw(
   intuit_ascii_style
   intuit_output_size
   draw_ascii_histogram 
+  print_hist_stats
 );
 our %EXPORT_TAGS = (
   'all' => \@EXPORT_OK,
@@ -221,6 +222,17 @@ sub intuit_output_size {
   }
 
   return ($terminal_columns, $terminal_rows);
+}
+
+sub print_hist_stats {
+  my ($ofh, $hist, $histopt) = @_;
+  
+  my $v_total_width = $histopt->{width} || (intuit_output_size($ofh))[0] - 2;
+  # Total: X Fills: X Mean: X Median: X
+  my ($tot, $nfills, $mean, $median) = map $hist->$_, qw(total nfills mean median);
+  my $str = sprintf("Total: %f NFills: %u Mean: %f Median %f\n", $tot, $nfills, $mean, $median);
+  $str = substr($str, 0, $v_total_width);
+  print $ofh $str;
 }
 
 # relevant options:

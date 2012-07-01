@@ -19,6 +19,7 @@ GetOptions(
   'style=s',
   'log',
 
+  'nostats',
   'min=f',
   'max=f',
   'nbins=i',
@@ -52,7 +53,7 @@ continuoushist - simple text histograms -- updating as data comes in
 
   generator | continuoushist [--sort] [--width=<ncols>] [--style=<ident>]
                              [--numeric-format|nf=<printf format>]
-                             [--timestamp|ts] [--xw]
+                             [--nostats] [--timestamp|ts] [--xw]
                              [--stepsize=X] [--log] [--cumulative]
                              [--nbins=X] --min=X --max=X
 
@@ -99,6 +100,7 @@ through C<localtime()> to convert from Unix timestamps to
 human-readable time strings.
 
 The --log option draws the histogram on a logarithmic scale.
+The --nostats option supresses output of the header line.
 
 =cut
 
@@ -117,8 +119,8 @@ $opt->{"numeric-format"} = $opt->{"show-numeric"} ? $opt->{"numeric-format"} : "
 
 my $styledef = intuit_ascii_style($opt->{style});
 $opt->{style} = $styledef;
-
-$opt->{nbins} = ( intuit_output_size(\*STDOUT) )[1] - 1 if not $opt->{nbins} and not $opt->{dump_as_input};
+$opt->{stats} = !$opt->{nostats};
+$opt->{nbins} = ( intuit_output_size(\*STDOUT) )[1] - ($opt->{stats} ? 2 : 1) if not $opt->{nbins} and not $opt->{dump_as_input};
 $opt->{stepsize} ||= 1;
 
 my $hist = Math::SimpleHisto::XS->new(
@@ -166,6 +168,8 @@ while (1) {
   }
   #use Data::Dumper;
   #warn Dumper \@rows;
+
+  print_hist_stats(\*STDOUT, $hist, $opt) if $opt->{stats};
 
   # The drawing code would use this as a drawing max min/max setting
   local $opt->{min};
