@@ -12,7 +12,7 @@ WriteMakefile(
       'Term::Size' => '0.200',
       'Pod::Usage' => '0',
     },
-    EXE_FILES => [qw(bin/histify bin/drawasciihist)],
+    EXE_FILES => [qw(bin/histify bin/drawasciihist bin/continuoushist)],
     ($] >= 5.005 ?
       (ABSTRACT_FROM  => 'lib/Math/SimpleHisto/XS/CLI.pm', # retrieve abstract from module
        AUTHOR         => 'Steffen Mueller <smueller@cpan.org>') : ()),
