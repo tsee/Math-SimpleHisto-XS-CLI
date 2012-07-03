@@ -1,6 +1,9 @@
 Revision history for Perl extension Math::SimpleHisto::XS::CLI.
 
-1.06  Sun Jul 07 18:40:00 2012
+1.07  Tue Jul 03 13:04:00 2012
+  - Distribution fixes.
+
+1.06  Sun Jul 01 18:40:00 2012
   - "continuoushist" tool combining "histify" and "drawasciihist"
     and updating histogram output as data comes in.
   - "continuoushist" has some basic stats output and other new
